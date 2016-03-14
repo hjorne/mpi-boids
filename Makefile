@@ -1,7 +1,7 @@
-CC=g++
-CFLAGS=-c -Wall
-LDFLAGS=
-SOURCES=main.cpp
+CC=mpicc
+CFLAGS=-c 
+LDFLAGS=-lm
+SOURCES=main.c
 OBJECTS=$(SOURCES:.cpp=.o)
 EXECUTABLE=pflock
 
