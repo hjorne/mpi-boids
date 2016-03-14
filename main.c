@@ -21,7 +21,7 @@
 Vec* InitBoidPositions(int, int, double);
 int* DistributeBoids(Vec*, int, int, double);
 int VecToRank(Vec, double, int);
-void InitializeRanks(int, int, int);
+void InitializeRanks(Vec**, int*, int, int, int);
 int* BoidRanks(Vec*, int, int, double);
 void MPITypeCommits();
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,32 +50,49 @@ int main(int argc, char** argv)
     numboids = 30;
     sidelen = 10;
     int numboids_myrank;
+    Vec* boid_positions = NULL;
 
     if (myrank == 0) {
         starttime = MPI_Wtime();
-        InitializeRanks(numranks, numboids, sidelen);
+        InitializeRanks(&boid_positions, &numboids_myrank, numranks, numboids, sidelen);
     }
     else {
         MPI_Recv(&numboids_myrank, 1, MPI_INT, 0, 0, MPI_COMM_WORLD,
                  MPI_STATUS_IGNORE);
 
+        boid_positions = (Vec*) malloc( numboids_myrank * sizeof(Vec) );
+
+        MPI_Recv(boid_positions, 2*numboids_myrank, MPI_DOUBLE, 0, 1,
+                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     }
 
-    MPI_Barrier( MPI_COMM_WORLD );
-
 
     MPI_Barrier( MPI_COMM_WORLD );
+
+    #ifdef DEBUG
+    printf("I'm rank %i, and I have %i boids to handle\n", myrank, numboids_myrank);
+    printf("Here they are:\n");
+
+    Vec r;
+    int i;
+    for (i = 0; i < numboids_myrank; ++i){
+        r = boid_positions[i];
+        printf("Rank %i Boid %i: (%f, %f)\n", myrank, i, r.x, r.y);
+    }
+    #endif
 
     if (myrank == 0)
         printf("That took %f seconds\n", MPI_Wtime() - starttime);
 
     MPI_Finalize();
+
+    return 0;
 }
 ////////////////////////////////////////////////////////////////////////////////
 
 
 ////////////////////////////////////////////////////////////////////////////////
-void InitializeRanks(int numranks, int numboids, int sidelen)
+void InitializeRanks(Vec** myboids, int* numboids_myrank, int numranks, int numboids, int sidelen)
 {
     Vec* boid_positions = InitBoidPositions(numranks, numboids, sidelen);
     int* boid_ranks = BoidRanks(boid_positions, numranks, numboids, sidelen);
@@ -84,12 +101,12 @@ void InitializeRanks(int numranks, int numboids, int sidelen)
 
     Vec* boids = NULL;
     int rank, j, idx;
-    // Rank 0 still needs to be handled somewhere
+    // Send boids to all nonzero ranks
     for (rank = 1; rank < numranks; ++rank) {
         boids = (Vec*) malloc( boids_per_rank[rank] * sizeof(Vec) );
 
         // Send number of boids this rank will be receiving
-        MPI_Send(&(boids_per_rank[rank]), 1, MPI_INT, rank, 0, MPI_COMM_WORLD);
+        MPI_Send(&boids_per_rank[rank], 1, MPI_INT, rank, 0, MPI_COMM_WORLD);
 
         idx = 0;
         for (j = 0; j < numboids; ++j) {
@@ -98,10 +115,19 @@ void InitializeRanks(int numranks, int numboids, int sidelen)
         }
 
         // 2 * boids_per_rank because for each boid there are two doubles
-        MPI_Send(boids, 2 * boids_per_rank[rank], MPI_DOUBLE, rank, 0,
+        MPI_Send(boids, 2 * boids_per_rank[rank], MPI_DOUBLE, rank, 1,
                  MPI_COMM_WORLD);
 
         // free(boids); Never free the memory! Hold him captive
+    }
+
+    // Handle rank 0 case
+    idx = 0;
+    *myboids = (Vec*) malloc( boids_per_rank[0] * sizeof(Vec) );
+    *numboids_myrank = boids_per_rank[0];
+    for (j = 0; j < numboids; ++j) {
+        if (boid_ranks[j] == 0)
+            (*myboids)[idx++] = boid_positions[j];
     }
 }
 ////////////////////////////////////////////////////////////////////////////////
