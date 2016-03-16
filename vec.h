@@ -7,8 +7,11 @@ typedef struct vec_s {
     double y;
 } Vec;
 
-void SetAngle(Vec* v, double a);
-void SetLength(Vec* v, double l);
-void InitRandomAngle(Vec* v, double l);
+void VecRandomAngle(Vec* v, double l);
+void VecSetAngle(Vec* v, double a);
+void VecSetLength(Vec* v, double l);
+double VecAngle(Vec v);
+double VecLength(Vec v);
+
 
 #endif
