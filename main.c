@@ -16,7 +16,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char** argv)
 {
-    int myrank, numranks, mynumboids, numboids, numticks;
+    int myrank, numranks, mynumboids, numboids, numticks, i;
     double starttime, sidelen;
     Boid* boids = NULL;
 
@@ -34,13 +34,11 @@ int main(int argc, char** argv)
 
     Initialize(&boids, &mynumboids, myrank, numranks, numboids, sidelen);
     InitializeSim(boids, myrank, mynumboids, numranks, sidelen);
-    // printf("I'm rank %i, and my box is (%f, %f) (%f, %f)\n", myrank, xMin(), xMax(), yMin(), yMax());
-    // printf("I'm rank %i, and I'm in quad (%i, %i)\n", myrank, xQuad(), yQuad());
-    // printf("I'm rank %i, and I have %i boids\n", myrank, mynumboids);
-    MPI_Barrier( MPI_COMM_WORLD );
 
-    int i;
-    Iterate(0);
+    MPI_Barrier( MPI_COMM_WORLD );
+    for (i = 0; i < numticks; ++i)
+        Iterate(i);
+    MPI_Barrier( MPI_COMM_WORLD );
 
     if (myrank == 0)
         printf("That took %f seconds\n", MPI_Wtime() - starttime);
