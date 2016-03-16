@@ -8,4 +8,6 @@ typedef struct boid_s {
     Vec v;  // Velocity vector
 } Boid;
 
+double BoidDist(Boid b1, Boid b2);
+
 #endif
