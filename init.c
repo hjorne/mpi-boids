@@ -16,9 +16,9 @@ void Initialize(Boid** boids, int* mynumboids, int myrank, int numranks,
 {
     CheckRanks(myrank, numranks);
 
-    if (myrank == 0) {
+    if (myrank == 0)
         InitializeRanks(boids, mynumboids, numranks, numboids, sidelen);
-    }
+
     else {
         MPI_Recv(mynumboids, 1, MPI_INT, 0, 0, MPI_COMM_WORLD,
                  MPI_STATUS_IGNORE);
@@ -105,7 +105,7 @@ int VecToRank(Vec v, double sidelen, int numranks)
     int x_quad = (int) floor(v.x / x_width);
     int y_quad = (int) floor(v.y / y_width);
 
-    int ranks_per_side = (int) floor(sqrt((double) numranks));
+    int ranks_per_side = (int) sqrt(numranks);
 
     return x_quad + y_quad * ranks_per_side;
 }
