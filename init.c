@@ -11,10 +11,14 @@
 
 
 ////////////////////////////////////////////////////////////////////////////////
+// Initializes boids randomly all on rank 0 (so there is room for inequality
+// in the distrubition), and sends boids to appropriate ranks depending on which
+// quadrant they were initialized in
 void Initialize(Boid** boids, int* mynumboids, int myrank, int numranks,
                 int numboids, double sidelen)
 {
     CheckRanks(myrank, numranks);
+    // TODO: add more checks on various variable ratios
 
     if (myrank == 0)
         InitializeRanks(boids, mynumboids, numranks, numboids, sidelen);
@@ -32,6 +36,8 @@ void Initialize(Boid** boids, int* mynumboids, int myrank, int numranks,
 
 
 ////////////////////////////////////////////////////////////////////////////////
+// Initialize all positions and velocities of boids, and sends them to various
+// ranks, except for those owned by rank 0
 void InitializeRanks(Boid** myboids, int* mynumboids, int numranks,
                      int numboids, double sidelen)
 {
@@ -70,11 +76,6 @@ void InitializeRanks(Boid** myboids, int* mynumboids, int numranks,
     }
     *mynumboids = boids_per_rank[0];
 }
-////////////////////////////////////////////////////////////////////////////////
-
-
-////////////////////////////////////////////////////////////////////////////////
-// void InitializeRank0()
 ////////////////////////////////////////////////////////////////////////////////
 
 

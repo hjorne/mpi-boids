@@ -20,10 +20,11 @@ int main(int argc, char** argv)
     double starttime, sidelen;
     Boid* boids = NULL;
 
+    // MPI and clcg4 initialization
     MPI_Init( &argc, &argv);
     MPI_Comm_size( MPI_COMM_WORLD, &numranks);
     MPI_Comm_rank( MPI_COMM_WORLD, &myrank);
-    InitDefault();  // clcg4 initialization
+    InitDefault();
 
     if (myrank == 0)
         starttime = MPI_Wtime();
@@ -32,12 +33,15 @@ int main(int argc, char** argv)
     sidelen = atof(argv[2]);
     numticks = atoi(argv[3]);
 
+    // Initialize boids and simulator
     Initialize(&boids, &mynumboids, myrank, numranks, numboids, sidelen);
     InitializeSim(boids, myrank, mynumboids, numranks, sidelen);
 
+    // Make sure everybody is initialized before beginning to iterate
     MPI_Barrier( MPI_COMM_WORLD );
     for (i = 0; i < numticks; ++i)
         Iterate(i);
+
     MPI_Barrier( MPI_COMM_WORLD );
 
     if (myrank == 0)

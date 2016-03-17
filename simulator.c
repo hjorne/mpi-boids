@@ -235,10 +235,10 @@ void Neighbors(int** ranks, int* num_neighbors)
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// Got wrapping modular function from:
-// http://stackoverflow.com/questions/4003232
+// Got wrapping modular function from Armen Tsirunyan on Stack Overflow
+// http://stackoverflow.com/a/4003287/3407785
 // Standard C modulus does not wrap around
-// a % b
+// (a % b)
 int mod(int a, int b)
 {
     if(b < 0)
@@ -249,6 +249,7 @@ int mod(int a, int b)
     return ret;
 }
 ////////////////////////////////////////////////////////////////////////////////
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // A bunch of functions that I would inline of IBM's XL compiler would let me
