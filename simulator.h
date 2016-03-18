@@ -13,7 +13,7 @@ int* SendRecvNumBoids(int*, int, int);
 Boid* ConcatenateBoids(Boid*, int);
 int TotalNeighborBoids(int*, int);
 void UpdateVelocity(Boid*, int);
-void UpdatePosition(Boid*, int*, int, int);
+void UpdatePosition(int*, int, int);
 void Neighbors(int**, int*);
 int mod(int, int);
 void Iterate(int);

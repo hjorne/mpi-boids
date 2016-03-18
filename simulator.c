@@ -54,7 +54,7 @@ void Iterate(int ticknum)
     all_boids = ConcatenateBoids(neighbor_boids, neighbor_total);
 
     UpdateVelocity(all_boids, neighbor_total);
-    UpdatePosition(all_boids, neighbor_ranks, num_neighbors, ticknum);
+    UpdatePosition(neighbor_ranks, num_neighbors, ticknum);
 
     SanityCheck();
 }
@@ -62,7 +62,7 @@ void Iterate(int ticknum)
 
 
 ////////////////////////////////////////////////////////////////////////////////
-void UpdatePosition(Boid* all_boids, int* neighbor_ranks, int num_neighbors, int ticknum)
+void UpdatePosition(int* neighbor_ranks, int num_neighbors, int ticknum)
 {
     double newx, newy, dt = 1.0;  // placeholder
     int i, j, rank, idx;
@@ -93,6 +93,9 @@ void UpdatePosition(Boid* all_boids, int* neighbor_ranks, int num_neighbors, int
     }
 
     RearrangeBoids(neighbor_ranks, num_to_send, index_cache, num_neighbors, ticknum);
+
+    free(num_to_send);
+    free(index_cache);
 }
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -156,16 +159,18 @@ void RearrangeBoids(int* neighbor_ranks, int* num_send, int* index_cache, int nu
     if (total_recv > 0)
         RecombineBoids(boid_recv, num_recv, index_cache, num_neighbors, total_recv);
 
-    // for (i = 0; i < num_neighbors; ++i) {
-    //     free(boid_recv[i]);
-    //     free(boid_send[i]);
-    // }
-    //
-    // free(boid_recv);
-    // free(boid_send);
-    // free(num_recv);
-    // free(send_r);
-    // free(recv_r);
+    for (i = 0; i < num_neighbors; ++i) {
+        if (num_recv[i] > 0)
+            free(boid_recv[i]);
+        if (num_send[i] > 0)
+            free(boid_send[i]);
+    }
+
+    free(boid_recv);
+    free(boid_send);
+    free(num_recv);
+    free(send_r);
+    free(recv_r);
 }
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -283,6 +288,8 @@ void UpdateVelocity(Boid* all_boids, int neighbor_total)
 
         boids[i].v = v;
     }
+
+    free(all_boids);
 }
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -301,6 +308,8 @@ Boid* ConcatenateBoids(Boid* neighbor_boids, int neighbor_total)
     for (i = 0; i < neighbor_total; ++i)
         all_boids[idx++] = neighbor_boids[i];
 
+    free(neighbor_boids);
+
     return all_boids;
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -314,6 +323,7 @@ int TotalNeighborBoids(int* num_neighbor_boids, int num_neighbors)
     int i, neighbor_total = 0;
     for (i = 0; i < num_neighbors; ++i)
         neighbor_total += num_neighbor_boids[i];
+
     return neighbor_total;
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -350,7 +360,12 @@ Boid* SendRecvBoids(int* neighbor_ranks, int* num_neighbor_boids,
         for (j = 0; j < num_neighbor_boids[i]; ++j) {
             neighbor_boids[idx++] = temp_boids[i][j];
         }
+        free(temp_boids[i]);
     }
+
+    free(send_r);
+    free(recv_r);
+    free(temp_boids);
 
     return neighbor_boids;
 }
@@ -375,6 +390,9 @@ int* SendRecvNumBoids(int* neighbor_ranks, int num_neighbors, int ticknum)
 
     MPI_Waitall(num_neighbors, send_r, MPI_STATUSES_IGNORE);
     MPI_Waitall(num_neighbors, recv_r, MPI_STATUSES_IGNORE);
+
+    free(send_r);
+    free(recv_r);
 
     return num_neighbor_boids;
 }
