@@ -7,7 +7,7 @@
 
 
 ////////////////////////////////////////////////////////////////////////////////
-void InitializeSim(Boid*, int, int, int, double);
+void InitializeSim(Boid*, int, int, int, int, double);
 Boid* SendRecvBoids(int*, int*, int, int);
 int* SendRecvNumBoids(int*, int, int);
 Boid* ConcatenateBoids(Boid*, int);
@@ -19,6 +19,8 @@ int mod(int, int);
 void Iterate(int);
 
 void RearrangeBoids(int*, int*, int*, int, int);
+void RecombineBoids(Boid**, int*, int*, int, int);
+void SanityCheck();
 ////////////////////////////////////////////////////////////////////////////////
 
 

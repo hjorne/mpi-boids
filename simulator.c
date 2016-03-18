@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <mpi.h>
+#include <assert.h>
 ////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,6 +16,7 @@ static Boid* boids;
 static int myrank;
 static int mynumboids;
 static int numranks;
+static int global_numboids;
 static double sidelen;
 static double cutoff = 1.0;
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,10 +24,11 @@ static double cutoff = 1.0;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Basic initialization of static variables
-void InitializeSim(Boid* b, int mr, int mnb, int nr, double sl)
+void InitializeSim(Boid* b, int mr, int nb, int mnb, int nr, double sl)
 {
     boids = b;
     myrank = mr;
+    global_numboids = nb;
     mynumboids = mnb;
     numranks = nr;
     sidelen = sl;
@@ -38,14 +41,13 @@ void InitializeSim(Boid* b, int mr, int mnb, int nr, double sl)
 // other MPI ranks can only be done among the same ticknum (used as tag)
 void Iterate(int ticknum)
 {
+    Boid* all_boids = NULL;
     int* neighbor_ranks = NULL;
     Boid* neighbor_boids = NULL;
-    Boid* all_boids = NULL;
     int* num_neighbor_boids = NULL;
     int num_neighbors, neighbor_total;
 
     Neighbors(&neighbor_ranks, &num_neighbors);
-
     num_neighbor_boids = SendRecvNumBoids(neighbor_ranks, num_neighbors, ticknum);
     neighbor_boids = SendRecvBoids(neighbor_ranks, num_neighbor_boids, num_neighbors, ticknum);
     neighbor_total = TotalNeighborBoids(num_neighbor_boids, num_neighbors);
@@ -53,6 +55,8 @@ void Iterate(int ticknum)
 
     UpdateVelocity(all_boids, neighbor_total);
     UpdatePosition(all_boids, neighbor_ranks, num_neighbors, ticknum);
+
+    SanityCheck();
 }
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -152,16 +156,16 @@ void RearrangeBoids(int* neighbor_ranks, int* num_send, int* index_cache, int nu
     if (total_recv > 0)
         RecombineBoids(boid_recv, num_recv, index_cache, num_neighbors, total_recv);
 
-    for (i = 0; i < num_neighbors; ++i) {
-        free(boid_recv[i]);
-        free(boid_send[i]);
-    }
-
-    free(boid_recv);
-    free(boid_send);
-    free(num_recv);
-    free(send_r);
-    free(recv_r);
+    // for (i = 0; i < num_neighbors; ++i) {
+    //     free(boid_recv[i]);
+    //     free(boid_send[i]);
+    // }
+    //
+    // free(boid_recv);
+    // free(boid_send);
+    // free(num_recv);
+    // free(send_r);
+    // free(recv_r);
 }
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -179,7 +183,7 @@ void RecombineBoids(Boid** boid_recv, int* num_recv, int* index_cache, int num_n
     new_boids = (Boid*) malloc(new_total * sizeof(Boid));
 
     for (i = 0; i < mynumboids; ++i) {
-        if (index_cache == -1)
+        if (index_cache[i] == -1)
             new_boids[idx++] = boids[i];
     }
 
@@ -199,9 +203,27 @@ void RecombineBoids(Boid** boid_recv, int* num_recv, int* index_cache, int num_n
 
 
 ////////////////////////////////////////////////////////////////////////////////
+// Checks to make sure that all boids are in the proper spaces, and that no
+// boids have been lost globally. Crashes if so
 void SanityCheck()
 {
+    int i, total_boids;
+    double xmin = xMin();
+    double ymin = yMin();
+    double xmax = xMax();
+    double ymax = yMax();
+    Boid b;
 
+    MPI_Allreduce(&mynumboids, &total_boids, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    assert(total_boids == global_numboids);
+
+    for (i = 0; i < mynumboids; ++i) {
+        b = boids[i];
+        assert(b.r.x < xmax);
+        assert(b.r.x > xmin);
+        assert(b.r.y < ymax);
+        assert(b.r.y > ymin);
+    }
 }
 ////////////////////////////////////////////////////////////////////////////////
 

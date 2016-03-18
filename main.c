@@ -35,9 +35,9 @@ int main(int argc, char** argv)
 
     // Initialize boids and simulator
     Initialize(&boids, &mynumboids, myrank, numranks, numboids, sidelen);
-    InitializeSim(boids, myrank, mynumboids, numranks, sidelen);
+    InitializeSim(boids, myrank, numboids,  mynumboids, numranks, sidelen);
 
-    // Make sure everybody is initialized before beginning to iterate
+    // Make sure everybody is initialized before
     MPI_Barrier( MPI_COMM_WORLD );
     for (i = 0; i < numticks; ++i)
         Iterate(i);
