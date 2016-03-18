@@ -21,6 +21,8 @@ void Iterate(int);
 void RearrangeBoids(int*, int*, int*, int, int);
 void RecombineBoids(Boid**, int*, int*, int, int);
 void SanityCheck();
+void PrintBoids();
+void PrintBoid(Boid);
 ////////////////////////////////////////////////////////////////////////////////
 
 

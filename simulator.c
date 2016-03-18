@@ -81,9 +81,12 @@ void UpdatePosition(int* neighbor_ranks, int num_neighbors, int ticknum)
         if (newx < 0.0) newx += sidelen;
         if (newy < 0.0) newy += sidelen;
 
+        boids[i].r.x = newx;
+        boids[i].r.y = newy;
         rank = CheckLocalBoundaries(newx, newy);
 
         if (rank != myrank) {
+            printf("Rank %i needs to send boid %i to rank %i\n", myrank, i + 1, rank);
             idx = IndexOf(neighbor_ranks, num_neighbors, rank);
             num_to_send[idx]++;
             index_cache[i] = idx;
@@ -109,12 +112,12 @@ void RearrangeBoids(int* neighbor_ranks, int* num_send, int* index_cache, int nu
     int i, j, idx, rank;
     int total_sent = 0;
     int total_recv = 0;
-    int* num_recv = (int*) malloc(num_neighbors * sizeof(int));
-    Boid** boid_send = (Boid**) malloc(num_neighbors * sizeof(Boid*));
-    Boid** boid_recv = (Boid**) malloc(num_neighbors * sizeof(Boid*));
+    int* num_recv = (int*) calloc(num_neighbors, sizeof(int));
+    Boid** boid_send = (Boid**) calloc(num_neighbors, sizeof(Boid*));
+    Boid** boid_recv = (Boid**) calloc(num_neighbors, sizeof(Boid*));
 
-    MPI_Request* send_r = (MPI_Request*) malloc(num_neighbors * sizeof(MPI_Request));
-    MPI_Request* recv_r = (MPI_Request*) malloc(num_neighbors * sizeof(MPI_Request));
+    MPI_Request* send_r = (MPI_Request*) calloc(num_neighbors, sizeof(MPI_Request));
+    MPI_Request* recv_r = (MPI_Request*) calloc(num_neighbors, sizeof(MPI_Request));
 
     for (i = 0; i < num_neighbors; ++i) {
         idx = 0;
@@ -125,7 +128,7 @@ void RearrangeBoids(int* neighbor_ranks, int* num_send, int* index_cache, int nu
 
         if (num_send[i] > 0) {
             total_sent += num_send[i];
-            boid_send[i] = (Boid*) malloc(num_send[i] * sizeof(Boid));
+            boid_send[i] = (Boid*) calloc(num_send[i], sizeof(Boid));
             for (j = 0; j < mynumboids; ++j) {
                 if (index_cache[j] == i)
                     boid_send[i][idx++] = boids[i];
@@ -140,15 +143,29 @@ void RearrangeBoids(int* neighbor_ranks, int* num_send, int* index_cache, int nu
     for (i = 0; i < num_neighbors; ++i) {
         rank = neighbor_ranks[i];
         if (num_send[i] > 0) {
-            MPI_Isend(boid_send[i], 4*num_send[i], MPI_DOUBLE, rank, ticknum, MPI_COMM_WORLD,
+#ifdef DEBUG
+            printf("Rank %i: Sending %i boids to rank %i\n", myrank, num_send[i], rank);
+            fflush(stdout);
+            int q;
+            // for (q = 0; q < num_send[i]; ++q)
+            //     PrintBoid(boid_send[i][q]);
+#endif
+            MPI_Isend(boid_send[i], 4 * num_send[i], MPI_DOUBLE, rank, ticknum, MPI_COMM_WORLD,
                       &send_r[i]);
         }
 
         if (num_recv[i] > 0) {
             total_recv += num_recv[i];
-            boid_recv[i] = (Boid*) malloc(num_recv[i] * sizeof(Boid));
-            MPI_Irecv(boid_recv[i], 4*num_recv[i], MPI_DOUBLE, rank, ticknum, MPI_COMM_WORLD,
+            boid_recv[i] = (Boid*) calloc(num_recv[i], sizeof(Boid));
+            MPI_Irecv(boid_recv[i], 4 * num_recv[i], MPI_DOUBLE, rank, ticknum, MPI_COMM_WORLD,
                       &recv_r[i]);
+#ifdef DEBUG
+            printf("Rank %i: Receiving %i boids from rank %i\n", myrank, num_recv[i], rank);
+            fflush(stdout);
+            int q;
+            for (q = 0; q < num_recv[i]; ++q)
+                PrintBoid(boid_recv[i][q]);
+#endif
         }
 
     }
@@ -185,7 +202,7 @@ void RecombineBoids(Boid** boid_recv, int* num_recv, int* index_cache, int num_n
     int new_total = mynumboids + total_recv;
     Boid* new_boids;
 
-    new_boids = (Boid*) malloc(new_total * sizeof(Boid));
+    new_boids = (Boid*) calloc(new_total, sizeof(Boid));
 
     for (i = 0; i < mynumboids; ++i) {
         if (index_cache[i] == -1)
@@ -193,7 +210,7 @@ void RecombineBoids(Boid** boid_recv, int* num_recv, int* index_cache, int num_n
     }
 
     for (i = 0; i < num_neighbors; ++i) {
-        if (num_recv[i] > 0){
+        if (num_recv[i] > 0) {
             for (j = 0; j < num_recv[i]; ++j) {
                 new_boids[idx++] = boid_recv[i][j];
             }
@@ -209,9 +226,12 @@ void RecombineBoids(Boid** boid_recv, int* num_recv, int* index_cache, int num_n
 
 ////////////////////////////////////////////////////////////////////////////////
 // Checks to make sure that all boids are in the proper spaces, and that no
-// boids have been lost globally. Crashes if so
+// boids have been lost globally. Crashes program if any checks are not met
 void SanityCheck()
 {
+    #ifdef DEBUG
+    // PrintBoids();
+    #endif
     int i, total_boids;
     double xmin = xMin();
     double ymin = yMin();
@@ -220,10 +240,26 @@ void SanityCheck()
     Boid b;
 
     MPI_Allreduce(&mynumboids, &total_boids, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+    if (total_boids != global_numboids)
+        printf("Lost a boid somewhere, crashing\n");
     assert(total_boids == global_numboids);
 
     for (i = 0; i < mynumboids; ++i) {
         b = boids[i];
+
+        #ifdef DEBUG
+        if (sqrt(b.v.x * b.v.x + b.v.y * b.v.y) > 0.031)
+            printf("Rank %i crashing on boid %i\n", myrank, i+1);
+
+        if (b.r.x > xmax || b.r.x < xmin || b.r.y > ymax || b.r.y < ymin) {
+            printf("-----Rank %i crashing on boid %i-----\n", myrank, i + 1);
+            fflush(stdout);
+            PrintBoid(b);
+        }
+        #endif
+
+        assert(sqrt(b.v.x * b.v.x + b.v.y * b.v.y) <= 0.031);
         assert(b.r.x < xmax);
         assert(b.r.x > xmin);
         assert(b.r.y < ymax);
@@ -258,6 +294,27 @@ int CheckLocalBoundaries(double x, double y)
     return QuadToRank(xquad, yquad);
 }
 ////////////////////////////////////////////////////////////////////////////////
+
+
+void PrintBoid(Boid b){
+    printf("Rank %i: Printing boid r = (%f, %f), v = (%f, %f), |v| = %f\n", myrank,
+                b.r.x, b.r.y, b.v.x, b.v.y, sqrt(b.v.x * b.v.x + b.v.y * b.v.y) );
+    fflush(stdout);
+}
+
+
+void PrintBoids()
+{
+    int i;
+    Boid b;
+    printf("Rank %i: Printing out %i boids x: [%f, %f], y: [%f, %f]\n", myrank, mynumboids,
+           xMin(), xMax(), yMin(), yMax());
+    for (i = 0; i < mynumboids; ++i) {
+        b = boids[i];
+        printf("Rank %i: boid %i: r = (%f, %f), v = (%f, %f), |v| = %f\n", myrank, i + 1,
+                b.r.x, b.r.y, b.v.x, b.v.y, sqrt(b.v.x * b.v.x + b.v.y * b.v.y) );
+    }
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -300,7 +357,7 @@ void UpdateVelocity(Boid* all_boids, int neighbor_total)
 Boid* ConcatenateBoids(Boid* neighbor_boids, int neighbor_total)
 {
     int total_count = neighbor_total + mynumboids;
-    Boid* all_boids = (Boid*) malloc(total_count * sizeof(Boid));
+    Boid* all_boids = (Boid*) calloc(total_count, sizeof(Boid));
     int i, idx = 0;
     for (i = 0; i < mynumboids; ++i)
         all_boids[idx++] = boids[i];
@@ -338,15 +395,15 @@ Boid* SendRecvBoids(int* neighbor_ranks, int* num_neighbor_boids,
     int i, j, rank, idx = 0;
     int neighbor_total = TotalNeighborBoids(num_neighbor_boids, num_neighbors);
 
-    Boid* neighbor_boids = (Boid*) malloc(neighbor_total * sizeof(Boid));
-    Boid** temp_boids = (Boid**) malloc(num_neighbors * sizeof(Boid*));
+    Boid* neighbor_boids = (Boid*) calloc(neighbor_total, sizeof(Boid));
+    Boid** temp_boids = (Boid**) calloc(num_neighbors, sizeof(Boid*));
 
-    MPI_Request* send_r = (MPI_Request*) malloc(num_neighbors * sizeof(MPI_Request));
-    MPI_Request* recv_r = (MPI_Request*) malloc(num_neighbors * sizeof(MPI_Request));
+    MPI_Request* send_r = (MPI_Request*) calloc(num_neighbors, sizeof(MPI_Request));
+    MPI_Request* recv_r = (MPI_Request*) calloc(num_neighbors, sizeof(MPI_Request));
 
     for (i = 0; i < num_neighbors; ++i) {
         rank = neighbor_ranks[i];
-        temp_boids[i] = (Boid*) malloc( num_neighbor_boids[i] * sizeof(Boid));
+        temp_boids[i] = (Boid*) calloc( num_neighbor_boids[i], sizeof(Boid));
         MPI_Isend(boids, 4 * mynumboids, MPI_DOUBLE, rank, ticknum, MPI_COMM_WORLD, &send_r[i]);
         MPI_Irecv(temp_boids[i], 4 * num_neighbor_boids[i], MPI_DOUBLE, rank, ticknum,
                   MPI_COMM_WORLD, &recv_r[i]);
@@ -377,9 +434,9 @@ Boid* SendRecvBoids(int* neighbor_ranks, int* num_neighbor_boids,
 // in a later call
 int* SendRecvNumBoids(int* neighbor_ranks, int num_neighbors, int ticknum)
 {
-    int* num_neighbor_boids = (int*) malloc(num_neighbors * sizeof(int));
-    MPI_Request* send_r = (MPI_Request*) malloc(num_neighbors * sizeof(MPI_Request));
-    MPI_Request* recv_r = (MPI_Request*) malloc(num_neighbors * sizeof(MPI_Request));
+    int* num_neighbor_boids = (int*) calloc(num_neighbors, sizeof(int));
+    MPI_Request* send_r = (MPI_Request*) calloc(num_neighbors, sizeof(MPI_Request));
+    MPI_Request* recv_r = (MPI_Request*) calloc(num_neighbors, sizeof(MPI_Request));
 
     int i, rank;
     for (i = 0; i < num_neighbors; ++i) {
@@ -413,7 +470,7 @@ void Neighbors(int** ranks, int* num_neighbors)
     // If there are only 4 ranks, then everyone who isn't you is a neighbor
     if (numranks == 4) {
         *num_neighbors = 3;
-        *ranks = (int*) malloc( (*num_neighbors) * sizeof(int) );
+        *ranks = (int*) calloc( (*num_neighbors), sizeof(int) );
 
         for (i = 0; i < 4; ++i) {
             if (i != myrank)
@@ -427,7 +484,7 @@ void Neighbors(int** ranks, int* num_neighbors)
         int yquad = yQuad();
         int num_rank_side = NumRanksSide();
         *num_neighbors = 8;
-        *ranks = (int*) malloc( (*num_neighbors) * sizeof(int) );
+        *ranks = (int*) calloc( (*num_neighbors), sizeof(int) );
 
         for (i = -1; i <= 1; ++i) {
             for (j = -1; j <= 1; ++j) {
