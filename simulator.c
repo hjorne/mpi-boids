@@ -86,7 +86,6 @@ void UpdatePosition(int* neighbor_ranks, int num_neighbors, int ticknum)
         rank = CheckLocalBoundaries(newx, newy);
 
         if (rank != myrank) {
-            printf("Rank %i needs to send boid %i to rank %i\n", myrank, i + 1, rank);
             idx = IndexOf(neighbor_ranks, num_neighbors, rank);
             num_to_send[idx]++;
             index_cache[i] = idx;
@@ -131,25 +130,17 @@ void RearrangeBoids(int* neighbor_ranks, int* num_send, int* index_cache, int nu
             boid_send[i] = (Boid*) calloc(num_send[i], sizeof(Boid));
             for (j = 0; j < mynumboids; ++j) {
                 if (index_cache[j] == i)
-                    boid_send[i][idx++] = boids[i];
+                    boid_send[i][idx++] = boids[j];
             }
         }
     }
 
-    mynumboids -= total_sent;
     MPI_Waitall(num_neighbors, send_r, MPI_STATUSES_IGNORE);
     MPI_Waitall(num_neighbors, recv_r, MPI_STATUSES_IGNORE);
 
     for (i = 0; i < num_neighbors; ++i) {
         rank = neighbor_ranks[i];
         if (num_send[i] > 0) {
-#ifdef DEBUG
-            printf("Rank %i: Sending %i boids to rank %i\n", myrank, num_send[i], rank);
-            fflush(stdout);
-            int q;
-            // for (q = 0; q < num_send[i]; ++q)
-            //     PrintBoid(boid_send[i][q]);
-#endif
             MPI_Isend(boid_send[i], 4 * num_send[i], MPI_DOUBLE, rank, ticknum, MPI_COMM_WORLD,
                       &send_r[i]);
         }
@@ -159,13 +150,6 @@ void RearrangeBoids(int* neighbor_ranks, int* num_send, int* index_cache, int nu
             boid_recv[i] = (Boid*) calloc(num_recv[i], sizeof(Boid));
             MPI_Irecv(boid_recv[i], 4 * num_recv[i], MPI_DOUBLE, rank, ticknum, MPI_COMM_WORLD,
                       &recv_r[i]);
-#ifdef DEBUG
-            printf("Rank %i: Receiving %i boids from rank %i\n", myrank, num_recv[i], rank);
-            fflush(stdout);
-            int q;
-            for (q = 0; q < num_recv[i]; ++q)
-                PrintBoid(boid_recv[i][q]);
-#endif
         }
 
     }
@@ -173,8 +157,7 @@ void RearrangeBoids(int* neighbor_ranks, int* num_send, int* index_cache, int nu
     MPI_Waitall(num_neighbors, send_r, MPI_STATUSES_IGNORE);
     MPI_Waitall(num_neighbors, recv_r, MPI_STATUSES_IGNORE);
 
-    if (total_recv > 0)
-        RecombineBoids(boid_recv, num_recv, index_cache, num_neighbors, total_recv);
+    RecombineBoids(boid_recv, num_recv, index_cache, num_neighbors, total_sent, total_recv);
 
     for (i = 0; i < num_neighbors; ++i) {
         if (num_recv[i] > 0)
@@ -194,19 +177,20 @@ void RearrangeBoids(int* neighbor_ranks, int* num_send, int* index_cache, int nu
 
 ////////////////////////////////////////////////////////////////////////////////
 void RecombineBoids(Boid** boid_recv, int* num_recv, int* index_cache, int num_neighbors,
-                    int total_recv)
+                    int total_sent, int total_recv)
 {
     int i, j;
     int recv_total = 0;
     int idx = 0;
-    int new_total = mynumboids + total_recv;
+    int new_total = mynumboids + total_recv - total_sent;
     Boid* new_boids;
 
     new_boids = (Boid*) calloc(new_total, sizeof(Boid));
 
     for (i = 0; i < mynumboids; ++i) {
-        if (index_cache[i] == -1)
+        if (index_cache[i] == -1) {
             new_boids[idx++] = boids[i];
+        }
     }
 
     for (i = 0; i < num_neighbors; ++i) {
@@ -229,9 +213,6 @@ void RecombineBoids(Boid** boid_recv, int* num_recv, int* index_cache, int num_n
 // boids have been lost globally. Crashes program if any checks are not met
 void SanityCheck()
 {
-    #ifdef DEBUG
-    // PrintBoids();
-    #endif
     int i, total_boids;
     double xmin = xMin();
     double ymin = yMin();
@@ -241,23 +222,10 @@ void SanityCheck()
 
     MPI_Allreduce(&mynumboids, &total_boids, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
-    if (total_boids != global_numboids)
-        printf("Lost a boid somewhere, crashing\n");
     assert(total_boids == global_numboids);
 
     for (i = 0; i < mynumboids; ++i) {
         b = boids[i];
-
-        #ifdef DEBUG
-        if (sqrt(b.v.x * b.v.x + b.v.y * b.v.y) > 0.031)
-            printf("Rank %i crashing on boid %i\n", myrank, i+1);
-
-        if (b.r.x > xmax || b.r.x < xmin || b.r.y > ymax || b.r.y < ymin) {
-            printf("-----Rank %i crashing on boid %i-----\n", myrank, i + 1);
-            fflush(stdout);
-            PrintBoid(b);
-        }
-        #endif
 
         assert(sqrt(b.v.x * b.v.x + b.v.y * b.v.y) <= 0.031);
         assert(b.r.x < xmax);
@@ -294,27 +262,6 @@ int CheckLocalBoundaries(double x, double y)
     return QuadToRank(xquad, yquad);
 }
 ////////////////////////////////////////////////////////////////////////////////
-
-
-void PrintBoid(Boid b){
-    printf("Rank %i: Printing boid r = (%f, %f), v = (%f, %f), |v| = %f\n", myrank,
-                b.r.x, b.r.y, b.v.x, b.v.y, sqrt(b.v.x * b.v.x + b.v.y * b.v.y) );
-    fflush(stdout);
-}
-
-
-void PrintBoids()
-{
-    int i;
-    Boid b;
-    printf("Rank %i: Printing out %i boids x: [%f, %f], y: [%f, %f]\n", myrank, mynumboids,
-           xMin(), xMax(), yMin(), yMax());
-    for (i = 0; i < mynumboids; ++i) {
-        b = boids[i];
-        printf("Rank %i: boid %i: r = (%f, %f), v = (%f, %f), |v| = %f\n", myrank, i + 1,
-                b.r.x, b.r.y, b.v.x, b.v.y, sqrt(b.v.x * b.v.x + b.v.y * b.v.y) );
-    }
-}
 
 
 ////////////////////////////////////////////////////////////////////////////////
