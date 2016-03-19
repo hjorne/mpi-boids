@@ -7,24 +7,22 @@
 
 
 ////////////////////////////////////////////////////////////////////////////////
+void RecombineBoids(Boid**, int*, int*, int, int, int);
 void InitializeSim(Boid*, int, int, int, int, double);
+void RearrangeBoids(int*, int*, int*, int, int);
 Boid* SendRecvBoids(int*, int*, int, int);
+int CheckLocalBoundaries(double, double);
 int* SendRecvNumBoids(int*, int, int);
+void UpdatePosition(int*, int, int);
 Boid* ConcatenateBoids(Boid*, int);
 int TotalNeighborBoids(int*, int);
 void UpdateVelocity(Boid*, int);
-void UpdatePosition(int*, int, int);
 void Neighbors(int**, int*);
+int IndexOf(int*, int, int);
+void PrintBoid(Boid);
+void SanityCheck();
 int mod(int, int);
 void Iterate(int);
-int CheckLocalBoundaries(double, double);
-int IndexOf(int*, int, int);
-
-void RearrangeBoids(int*, int*, int*, int, int);
-void RecombineBoids(Boid**, int*, int*, int, int, int);
-void SanityCheck();
-void PrintBoids();
-void PrintBoid(Boid);
 ////////////////////////////////////////////////////////////////////////////////
 
 
