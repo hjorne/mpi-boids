@@ -126,8 +126,8 @@ int* DistributeBoids(Vec* boid_positions, int numboids, int numranks,
     // Calloc initilizes all values to 0
     int* boids_per_rank = (int*) calloc( numranks, sizeof(int) );
     int* boid_ranks = BoidRanks(boid_positions, numranks, numboids, sidelen);
-    int i, rank;
-
+    
+    int i;
     for (i = 0; i < numboids; ++i)
         boids_per_rank[boid_ranks[i]]++;
 

@@ -17,6 +17,8 @@ void UpdatePosition(int*, int, int);
 void Neighbors(int**, int*);
 int mod(int, int);
 void Iterate(int);
+int CheckLocalBoundaries(double, double);
+int IndexOf(int*, int, int);
 
 void RearrangeBoids(int*, int*, int*, int, int);
 void RecombineBoids(Boid**, int*, int*, int, int, int);
@@ -29,6 +31,7 @@ void PrintBoid(Boid);
 ////////////////////////////////////////////////////////////////////////////////
 // Functions that should be inlined, but IBM's XL compiler won't let me
 int QuadToRank(int, int);
+int NumRanksSide();
 double xGrid();
 double yGrid();
 double xMin();

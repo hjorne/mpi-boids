@@ -11,13 +11,14 @@
 #include "simulator.h"
 #include "boid.h"
 #include "init.h"
+#include "clcg4.h"
 ////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char** argv)
 {
     int myrank, numranks, mynumboids, numboids, numticks, i;
-    double starttime, sidelen;
+    double sidelen, starttime = 0.0;
     Boid* boids = NULL;
 
     // MPI and clcg4 initialization

@@ -62,10 +62,13 @@ void Iterate(int ticknum)
 
 
 ////////////////////////////////////////////////////////////////////////////////
+// Runs through boids and updates their positions based off their velocities
+// Enforces global boundary conditions and makes sure that if a boid moves
+// out of territory controlled by its rank, it is moved to the appropriate rank
 void UpdatePosition(int* neighbor_ranks, int num_neighbors, int ticknum)
 {
-    double newx, newy, dt = 1.0;  // placeholder
-    int i, j, rank, idx;
+    double newx, newy, dt = 1.0;
+    int i, rank, idx;
 
     // Initialize to 0, parallels neighbor_ranks array
     int* num_to_send = (int*) calloc(num_neighbors, sizeof(int));
@@ -85,6 +88,7 @@ void UpdatePosition(int* neighbor_ranks, int num_neighbors, int ticknum)
         boids[i].r.y = newy;
         rank = CheckLocalBoundaries(newx, newy);
 
+        // Checks if current boid needs to be sent to a different rank
         if (rank != myrank) {
             idx = IndexOf(neighbor_ranks, num_neighbors, rank);
             num_to_send[idx]++;
@@ -94,6 +98,7 @@ void UpdatePosition(int* neighbor_ranks, int num_neighbors, int ticknum)
             index_cache[i] = -1;
     }
 
+    // Sends out-of-place boids to required ranks
     RearrangeBoids(neighbor_ranks, num_to_send, index_cache, num_neighbors, ticknum);
 
     free(num_to_send);
@@ -118,6 +123,8 @@ void RearrangeBoids(int* neighbor_ranks, int* num_send, int* index_cache, int nu
     MPI_Request* send_r = (MPI_Request*) calloc(num_neighbors, sizeof(MPI_Request));
     MPI_Request* recv_r = (MPI_Request*) calloc(num_neighbors, sizeof(MPI_Request));
 
+    // Prepares boids that need to be sent, and send the number of boids
+    // to recv'd on the other end
     for (i = 0; i < num_neighbors; ++i) {
         idx = 0;
         rank = neighbor_ranks[i];
@@ -138,6 +145,7 @@ void RearrangeBoids(int* neighbor_ranks, int* num_send, int* index_cache, int nu
     MPI_Waitall(num_neighbors, send_r, MPI_STATUSES_IGNORE);
     MPI_Waitall(num_neighbors, recv_r, MPI_STATUSES_IGNORE);
 
+    // Sends actual boids
     for (i = 0; i < num_neighbors; ++i) {
         rank = neighbor_ranks[i];
         if (num_send[i] > 0) {
@@ -157,6 +165,8 @@ void RearrangeBoids(int* neighbor_ranks, int* num_send, int* index_cache, int nu
     MPI_Waitall(num_neighbors, send_r, MPI_STATUSES_IGNORE);
     MPI_Waitall(num_neighbors, recv_r, MPI_STATUSES_IGNORE);
 
+    // After receiving or getting rid of boids, recombines them into an
+    // intelligible form
     RecombineBoids(boid_recv, num_recv, index_cache, num_neighbors, total_sent, total_recv);
 
     for (i = 0; i < num_neighbors; ++i) {
@@ -176,11 +186,12 @@ void RearrangeBoids(int* neighbor_ranks, int* num_send, int* index_cache, int nu
 
 
 ////////////////////////////////////////////////////////////////////////////////
+// "Flattens" boids, and makes sure mynumboids matches the number of boids
+// associated with this rank
 void RecombineBoids(Boid** boid_recv, int* num_recv, int* index_cache, int num_neighbors,
                     int total_sent, int total_recv)
 {
     int i, j;
-    int recv_total = 0;
     int idx = 0;
     int new_total = mynumboids + total_recv - total_sent;
     Boid* new_boids;
@@ -220,6 +231,7 @@ void SanityCheck()
     double ymax = yMax();
     Boid b;
 
+    // Sums up the number of boids on each rank
     MPI_Allreduce(&mynumboids, &total_boids, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
     assert(total_boids == global_numboids);
@@ -426,7 +438,7 @@ void Neighbors(int** ranks, int* num_neighbors)
     }
     // Otherwise, you have 8 unique neighbors, since numranks = 4^n
     else {
-        int xnew, ynew, newrank;
+        int xnew, ynew;
         int xquad = xQuad();
         int yquad = yQuad();
         int num_rank_side = NumRanksSide();
