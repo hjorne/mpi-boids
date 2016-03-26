@@ -12,14 +12,16 @@
 #include "boid.h"
 #include "init.h"
 #include "clcg4.h"
+#include "io.h"
 ////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char** argv)
 {
-    int myrank, numranks, mynumboids, numboids, numticks, i;
-    double sidelen, starttime = 0.0;
+    int myrank, numranks, mynumboids, i;
+    double starttime = 0.0;
     Boid* boids = NULL;
+    Config* c = NULL;
 
     // MPI and clcg4 initialization
     MPI_Init( &argc, &argv);
@@ -30,17 +32,15 @@ int main(int argc, char** argv)
     if (myrank == 0)
         starttime = MPI_Wtime();
 
-    numboids = atoi(argv[1]);
-    sidelen = atof(argv[2]);
-    numticks = atoi(argv[3]);
+    c = ReadConfig(argv[1]);
 
     // Initialize boids and simulator
-    Initialize(&boids, &mynumboids, myrank, numranks, numboids, sidelen);
-    InitializeSim(boids, myrank, numboids,  mynumboids, numranks, sidelen);
+    Initialize(&boids, c, &mynumboids, myrank, numranks);
+    InitializeSim(boids, c, myrank,  mynumboids, numranks);
 
     // Make sure everybody is initialized before
     MPI_Barrier( MPI_COMM_WORLD );
-    for (i = 0; i < numticks; ++i)
+    for (i = 0; i < c->numticks; ++i)
         Iterate(i);
 
     MPI_Barrier( MPI_COMM_WORLD );

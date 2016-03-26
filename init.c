@@ -1,4 +1,4 @@
-////////////////////////////////////////////////////////////////////////////////
+ ////////////////////////////////////////////////////////////////////////////////
 #include "clcg4.h"
 #include <stdlib.h>
 #include <stddef.h>
@@ -14,14 +14,13 @@
 // Initializes boids randomly all on rank 0 (so there is room for inequality
 // in the distrubition), and sends boids to appropriate ranks depending on which
 // quadrant they were initialized in
-void Initialize(Boid** boids, int* mynumboids, int myrank, int numranks,
-                int numboids, double sidelen)
+void Initialize(Boid** boids, Config* c, int* mynumboids, int myrank, int numranks)
 {
     CheckRanks(myrank, numranks);
     // TODO: add more checks on various variable ratios
 
     if (myrank == 0)
-        InitializeRanks(boids, mynumboids, numranks, numboids, sidelen);
+        InitializeRanks(boids, mynumboids, numranks, c->numboids, c->sidelen);
 
     else {
         MPI_Recv(mynumboids, 1, MPI_INT, 0, 0, MPI_COMM_WORLD,
@@ -126,7 +125,7 @@ int* DistributeBoids(Vec* boid_positions, int numboids, int numranks,
     // Calloc initilizes all values to 0
     int* boids_per_rank = (int*) calloc( numranks, sizeof(int) );
     int* boid_ranks = BoidRanks(boid_positions, numranks, numboids, sidelen);
-    
+
     int i;
     for (i = 0; i < numboids; ++i)
         boids_per_rank[boid_ranks[i]]++;
