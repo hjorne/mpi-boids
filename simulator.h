@@ -3,18 +3,21 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 #include "boid.h"
+#include "io.h"
 ////////////////////////////////////////////////////////////////////////////////
 
 
 ////////////////////////////////////////////////////////////////////////////////
+// I know it's stupid, I can't help myself
 void RecombineBoids(Boid**, int*, int*, int, int, int);
-void InitializeSim(Boid*, int, int, int, int, double);
+void InitializeSim(Boid*, Config*, int, int, int);
 void RearrangeBoids(int*, int*, int*, int, int);
 Boid* SendRecvBoids(int*, int*, int, int);
 int CheckLocalBoundaries(double, double);
 int* SendRecvNumBoids(int*, int, int);
 void UpdatePosition(int*, int, int);
 Boid* ConcatenateBoids(Boid*, int);
+double AverageNormalizedVelocity();
 int TotalNeighborBoids(int*, int);
 void UpdateVelocity(Boid*, int);
 void Neighbors(int**, int*);

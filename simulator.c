@@ -13,25 +13,35 @@
 // Only basic primatives of the simulation are made global variables.
 // Everything else derived from these are made into functions
 static Boid* boids;
+static int seed;
 static int myrank;
-static int mynumboids;
 static int numranks;
+static int mynumboids;
 static int global_numboids;
+static double dt;
+static double noise;
+static double boid_v;
+static double cutoff;
 static double sidelen;
-static double cutoff = 1.0;
 ////////////////////////////////////////////////////////////////////////////////
 
 
 ////////////////////////////////////////////////////////////////////////////////
 // Basic initialization of static variables
-void InitializeSim(Boid* b, int mr, int nb, int mnb, int nr, double sl)
+void InitializeSim(Boid* b, Config* c, int mr, int mnb, int nr)
 {
     boids = b;
     myrank = mr;
-    global_numboids = nb;
     mynumboids = mnb;
     numranks = nr;
-    sidelen = sl;
+
+    seed = c->seed;
+    global_numboids = c->numboids;
+    boid_v = c->v;
+    dt = c->dt;
+    noise = c->noise;
+    cutoff = c->cutoff;
+    sidelen = c->sidelen;
 }
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,6 +51,7 @@ void InitializeSim(Boid* b, int mr, int nb, int mnb, int nr, double sl)
 // other MPI ranks can only be done among the same ticknum (used as tag)
 void Iterate(int ticknum)
 {
+    double avg_norm_v;
     Boid* all_boids = NULL;
     int* neighbor_ranks = NULL;
     Boid* neighbor_boids = NULL;
@@ -56,9 +67,45 @@ void Iterate(int ticknum)
     UpdateVelocity(all_boids, neighbor_total);
     UpdatePosition(neighbor_ranks, num_neighbors, ticknum);
 
+    avg_norm_v = AverageNormalizedVelocity();
+
     SanityCheck();
 }
 ////////////////////////////////////////////////////////////////////////////////
+
+
+double AverageNormalizedVelocity()
+{
+    int i;
+    double vx = 0.0, vy = 0.0;
+    double* vx_list = NULL;
+    double* vy_list = NULL;
+    for (i = 0; i < mynumboids; ++i) {
+        vx += boids[i].v.x;
+        vy += boids[i].v.y;
+    }
+
+    if (myrank == 0) {
+        vx_list = (double*) calloc(numranks, sizeof(double));
+        vy_list = (double*) calloc(numranks, sizeof(double));
+    }
+
+    MPI_Gather(&vx, 1, MPI_DOUBLE, vx_list, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Gather(&vy, 1, MPI_DOUBLE, vy_list, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+    if (myrank == 0) {
+        vx = 0.0;
+        vy = 0.0;
+
+        for (i = 0; i < numranks; ++i) {
+            vx += vx_list[i];
+            vy += vy_list[i];
+        }
+
+        vx = abs(vx) / (global_numboids * boid_v);
+        vy = abs(vy) / (global_numboids * boid_v);
+    }
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,7 +114,7 @@ void Iterate(int ticknum)
 // out of territory controlled by its rank, it is moved to the appropriate rank
 void UpdatePosition(int* neighbor_ranks, int num_neighbors, int ticknum)
 {
-    double newx, newy, dt = 1.0;
+    double newx, newy;
     int i, rank, idx;
 
     // Initialize to 0, parallels neighbor_ranks array
@@ -239,7 +286,7 @@ void SanityCheck()
     for (i = 0; i < mynumboids; ++i) {
         b = boids[i];
 
-        assert(sqrt(b.v.x * b.v.x + b.v.y * b.v.y) <= 0.031);
+        assert(sqrt(b.v.x * b.v.x + b.v.y * b.v.y) <= boid_v * 1.01);
         assert(b.r.x < xmax);
         assert(b.r.x > xmin);
         assert(b.r.y < ymax);
@@ -298,9 +345,9 @@ void UpdateVelocity(Boid* all_boids, int neighbor_total)
         }
         v.x = v_x / (double) neighbors;
         v.y = v_y / (double) neighbors;
-        angle = VecAngle(v) + (GenVal(1) - 0.5);
+        angle = VecAngle(v) + noise * (GenVal(1) - 0.5);
         VecSetAngle(&v, angle);
-        VecSetLength(&v, 0.03);
+        VecSetLength(&v, boid_v);
 
         boids[i].v = v;
     }
