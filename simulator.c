@@ -1,6 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 #include "simulator.h"
 #include "clcg4.h"
+#include "io.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,6 +14,7 @@
 // Only basic primatives of the simulation are made global variables.
 // Everything else derived from these are made into functions
 static Boid* boids;
+static char* fname;
 static int seed;
 static int myrank;
 static int numranks;
@@ -35,6 +37,7 @@ void InitializeSim(Boid* b, Config* c, int mr, int mnb, int nr)
     mynumboids = mnb;
     numranks = nr;
 
+    fname = c->fname;
     seed = c->seed;
     global_numboids = c->numboids;
     boid_v = c->v;
@@ -47,7 +50,7 @@ void InitializeSim(Boid* b, Config* c, int mr, int mnb, int nr)
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// Driver of the simulator. Called with ticknum so sending and receiving from
+// Driver of the simulator. Called with ticknum 0so sending and receiving from
 // other MPI ranks can only be done among the same ticknum (used as tag)
 void Iterate(int ticknum)
 {
@@ -66,9 +69,8 @@ void Iterate(int ticknum)
 
     UpdateVelocity(all_boids, neighbor_total);
     UpdatePosition(neighbor_ranks, num_neighbors, ticknum);
-
+    WriteRankData(fname, boids, mynumboids, global_numboids, ticknum, myrank, numranks);
     avg_norm_v = AverageNormalizedVelocity();
-
     SanityCheck();
 }
 ////////////////////////////////////////////////////////////////////////////////
@@ -102,9 +104,10 @@ double AverageNormalizedVelocity()
             vy += vy_list[i];
         }
 
-        vx = abs(vx) / (global_numboids * boid_v);
-        vy = abs(vy) / (global_numboids * boid_v);
+        return sqrt(vx * vx + vy * vy) / (global_numboids * boid_v);
     }
+
+    return 0.0;
 }
 
 
@@ -196,15 +199,15 @@ void RearrangeBoids(int* neighbor_ranks, int* num_send, int* index_cache, int nu
     for (i = 0; i < num_neighbors; ++i) {
         rank = neighbor_ranks[i];
         if (num_send[i] > 0) {
-            MPI_Isend(boid_send[i], 4 * num_send[i], MPI_DOUBLE, rank, ticknum, MPI_COMM_WORLD,
-                      &send_r[i]);
+            MPI_Isend(boid_send[i], num_send[i] * sizeof(Boid), MPI_BYTE, rank, ticknum,
+                      MPI_COMM_WORLD, &send_r[i]);
         }
 
         if (num_recv[i] > 0) {
             total_recv += num_recv[i];
             boid_recv[i] = (Boid*) calloc(num_recv[i], sizeof(Boid));
-            MPI_Irecv(boid_recv[i], 4 * num_recv[i], MPI_DOUBLE, rank, ticknum, MPI_COMM_WORLD,
-                      &recv_r[i]);
+            MPI_Irecv(boid_recv[i], num_recv[i] * sizeof(Boid), MPI_BYTE, rank, ticknum,
+                      MPI_COMM_WORLD, &recv_r[i]);
         }
 
     }
@@ -279,7 +282,7 @@ void SanityCheck()
     Boid b;
 
     // Sums up the number of boids on each rank
-    MPI_Allreduce(&mynumboids, &total_boids, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(&mynumboids, &total_boids, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
     assert(total_boids == global_numboids);
 
@@ -410,8 +413,8 @@ Boid* SendRecvBoids(int* neighbor_ranks, int* num_neighbor_boids,
     for (i = 0; i < num_neighbors; ++i) {
         rank = neighbor_ranks[i];
         temp_boids[i] = (Boid*) calloc( num_neighbor_boids[i], sizeof(Boid));
-        MPI_Isend(boids, 4 * mynumboids, MPI_DOUBLE, rank, ticknum, MPI_COMM_WORLD, &send_r[i]);
-        MPI_Irecv(temp_boids[i], 4 * num_neighbor_boids[i], MPI_DOUBLE, rank, ticknum,
+        MPI_Isend(boids, mynumboids * sizeof(Boid), MPI_BYTE, rank, ticknum, MPI_COMM_WORLD, &send_r[i]);
+        MPI_Irecv(temp_boids[i], num_neighbor_boids[i] * sizeof(Boid), MPI_BYTE, rank, ticknum,
                   MPI_COMM_WORLD, &recv_r[i]);
     }
 
