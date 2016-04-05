@@ -1,4 +1,4 @@
- ////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 #include "clcg4.h"
 #include <stdlib.h>
 #include <stddef.h>
@@ -27,7 +27,7 @@ void Initialize(Boid** boids, Config* c, int* mynumboids, int myrank, int numran
                  MPI_STATUS_IGNORE);
 
         *boids = (Boid*) malloc( (*mynumboids) * sizeof(Boid) );
-        MPI_Recv(*boids, 4 * (*mynumboids), MPI_DOUBLE, 0, 1, MPI_COMM_WORLD,
+        MPI_Recv(*boids, (*mynumboids) * sizeof(Boid), MPI_BYTE, 0, 1, MPI_COMM_WORLD,
                  MPI_STATUS_IGNORE);
     }
 }
@@ -47,6 +47,7 @@ void InitializeRanks(Boid** myboids, int* mynumboids, int numranks,
 
     Boid* boids = NULL;
     int rank, j, idx;
+    unsigned int boid_counter = 0;
     // Send boids to all nonzero ranks
     for (rank = 1; rank < numranks; ++rank) {
         boids = (Boid*) malloc( boids_per_rank[rank] * sizeof(Boid) );
@@ -56,11 +57,12 @@ void InitializeRanks(Boid** myboids, int* mynumboids, int numranks,
         idx = 0;
         for (j = 0; j < numboids; ++j) {
             if ( boid_ranks[j] == rank ) {
+                boids[idx].id = boid_counter++;
                 boids[idx].r = boid_positions[j];
                 VecRandomAngle(&(boids[idx++].v), 0.03);
             }
         }
-        MPI_Send(boids, 4 * boids_per_rank[rank], MPI_DOUBLE, rank, 1,
+        MPI_Send(boids, boids_per_rank[rank] * sizeof(Boid), MPI_BYTE, rank, 1,
                  MPI_COMM_WORLD);
     }
 
@@ -69,6 +71,7 @@ void InitializeRanks(Boid** myboids, int* mynumboids, int numranks,
     *myboids = (Boid*) malloc( boids_per_rank[0] * sizeof(Boid) );
     for (j = 0; j < numboids; ++j) {
         if (boid_ranks[j] == 0) {
+            (*myboids)[idx].id = boid_counter++;
             (*myboids)[idx].r = boid_positions[j];
             VecRandomAngle( &((*myboids)[idx++].v), 0.03 );
         }
