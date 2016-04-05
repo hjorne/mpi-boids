@@ -4,6 +4,7 @@
 #include "boid.h"
 
 typedef struct config_s {
+    char* fname;
     int seed;
     int numboids;
     int numticks;
@@ -16,7 +17,9 @@ typedef struct config_s {
 
 Config* DefaultConfig();
 Config* ReadConfig(char*);
-void WriteRankData(Boid*, int, int);
-static int handler(void* user, const char* section, const char* name, const char* value);
+void WriteRankData(char*, Boid*, int, int, int, int, int);
+char* GenerateRankData(Boid*, int, int, int, int, int*);
+char* ConcatenateOutput(char**, int, int);
+int handler(void* user, const char* section, const char* name, const char* value);
 
 #endif
