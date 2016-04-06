@@ -4,12 +4,13 @@
 #include <string.h>
 #include <stdio.h>
 #include <mpi.h>
-
+#include <assert.h>
 #define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
 
 void WriteRankData(char* fname, Boid* boids, int mynumboids, int global_numboids, int ticknum,
                    int myrank, int numranks)
 {
+
     static int global_offset;
     int num_bytes, i;
     int total_bytes = 0;
@@ -28,9 +29,8 @@ void WriteRankData(char* fname, Boid* boids, int mynumboids, int global_numboids
             local_offset += bytes_per_rank[i];
     }
 
-    MPI_File_open(MPI_COMM_WORLD, fname, MPI_MODE_CREATE | MPI_MODE_WRONLY,
-                  MPI_INFO_NULL, &fh);
 
+    MPI_File_open(MPI_COMM_WORLD, fname, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &fh);
     MPI_File_write_at(fh, global_offset + local_offset, io_line, num_bytes, MPI_CHAR,
                       MPI_STATUS_IGNORE);
     MPI_File_close(&fh);
@@ -47,7 +47,7 @@ char* GenerateRankData(Boid* boids, int myrank, int mynumboids, int global_numbo
 {
     Boid b;
     char buff[1024];
-    int i;
+    int i, n_temp;
     int n = 0;
     int offset = 0;
     char** io_lines = NULL;
@@ -69,27 +69,30 @@ char* GenerateRankData(Boid* boids, int myrank, int mynumboids, int global_numbo
 
     for (i = 0; i < mynumboids; ++i) {
         b = boids[i];
-        n += sprintf(buff, "bird%i %f %f 0.0\n", b.id, b.r.x, b.r.y);
+        n += sprintf(buff, "bird%i %f %f 0.0 %f %f 0.0\n", b.id, b.r.x, b.r.y, b.v.x, b.v.y);
         io_lines[i + offset] = strdup(buff);
     }
-
     *num_bytes = n;
-    return ConcatenateOutput(io_lines, mynumboids, n);
+    return ConcatenateOutput(io_lines, mynumboids + offset, n);
 }
 
 char* ConcatenateOutput(char** io_lines, int mynumboids, int num_chars)
 {
-    char* io_line = (char*) calloc(num_chars, sizeof(char));
+    char* io_line = (char*) calloc(num_chars + 1, sizeof(char));
 
     int i, j, len;
+    for (i = 0; i < num_chars; ++i) {
+        io_line[i] = 0x40;
+    }
     int count = 0;
     for (i = 0; i < mynumboids; ++i) {
         len = strlen(io_lines[i]);
-        for (j = 0; j < len; ++j)
+        for (j = 0; j < len; ++j) {
             io_line[count++] = io_lines[i][j];
+        }
         free(io_lines[i]);
     }
-
+    io_line[count] = 0x00;
     free(io_lines);
     return io_line;
 }
