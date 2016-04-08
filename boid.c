@@ -1,4 +1,3 @@
-
 #include "boid.h"
 #include <math.h>
 
