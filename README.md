@@ -10,8 +10,3 @@ No custom MPI datatypes were created here, since they typically incur a performa
 Sanity check is currently still enabled for testing purposes. Disabling it will lead to greater performance.
 
 Number of MPI ranks uses must be a power of 4, since the global simulation box is square, and the section each rank takes care of is required to be a symmetric. This is both a performance boost, and is also just easier to program.
-
-### TODO
-1. Parallel IO
-2. Random seed values
-3. Write actual makefile
