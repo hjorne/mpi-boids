@@ -2,13 +2,22 @@
 #include "ini.h"
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 #include <stdio.h>
 #include <mpi.h>
-#include <assert.h>
+
+/* Define macro specified in ini example. See github */
 #define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
 
-void WriteRankData(char* fname, Boid* boids, int mynumboids, int global_numboids, int ticknum,
-                   int myrank, int numranks)
+/*
+ * Controller function for output. Uses a static variable (so that it stays persistent between
+ * calls) to keep track of a global offset within the file, so that each timestep doesn't overwrite
+ * another, and calculates a local offset based of how many bytes each rank is writing. Finds this
+ * with an MPI_Allgather each call
+ */
+void
+WriteRankData(char* fname, Boid* boids, int mynumboids, int global_numboids, int ticknum,
+              int myrank, int numranks)
 {
 
     static int global_offset;
@@ -29,7 +38,6 @@ void WriteRankData(char* fname, Boid* boids, int mynumboids, int global_numboids
             local_offset += bytes_per_rank[i];
     }
 
-
     MPI_File_open(MPI_COMM_WORLD, fname, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &fh);
     MPI_File_write_at(fh, global_offset + local_offset, io_line, num_bytes, MPI_CHAR,
                       MPI_STATUS_IGNORE);
@@ -41,10 +49,15 @@ void WriteRankData(char* fname, Boid* boids, int mynumboids, int global_numboids
     free(io_line);
 }
 
-///////////////////////////////////////////////////////////////////////////////
-// Generates output line for each boid in simulation
-char* GenerateRankData(Boid* boids, int myrank, int mynumboids, int global_numboids, int ticknum,
-                       int* num_bytes)
+/*
+ * Generates output line for each boid in simulation. Uses sprintf to write strings to a large
+ * buffer array in the stack. Keeps track of the number of bytes written usen return values from
+ * sprintf. Rank 0 also writes the 'headers' for each timestep, along with controlling the newlines
+ * between each timestep so everything looks nice
+ */
+char*
+GenerateRankData(Boid* boids, int myrank, int mynumboids, int global_numboids, int ticknum,
+                 int* num_bytes)
 {
     Boid b;
     char buff[1024];
@@ -53,6 +66,8 @@ char* GenerateRankData(Boid* boids, int myrank, int mynumboids, int global_numbo
     int offset = 0;
     char** io_lines = NULL;
 
+    /* Make sure headers and newlines are done appropriatiately. Different size callocs are needed
+       depending on  whether or not headers are included or not*/
     if (myrank == 0) {
         io_lines = (char**) calloc(mynumboids + 1, sizeof(char*));
 
@@ -68,18 +83,26 @@ char* GenerateRankData(Boid* boids, int myrank, int mynumboids, int global_numbo
         io_lines = (char**) calloc(mynumboids, sizeof(char*));
     }
 
+    /* CHANGE ME FLAG
+       If you need to change the format of each output line (include/exclude velocity info) change
+       the sprintf line to your needs */
     for (i = 0; i < mynumboids; ++i) {
         b = boids[i];
         n += sprintf(buff, "%i %f %f 0.0 %f %f 0.0\n", b.id, b.r.x, b.r.y, b.v.x, b.v.y);
         io_lines[i + offset] = strdup(buff);
     }
     *num_bytes = n;
+
+    /* This function actually generates an array of strings. Calls ConcatenateOutput so that the
+       function can return 1 single coherent string per rank */
     return ConcatenateOutput(io_lines, mynumboids + offset, n);
 }
-///////////////////////////////////////////////////////////////////////////////
 
-
-///////////////////////////////////////////////////////////////////////////////
+/*
+ * As stated above, this function returns a single string from an array of strings for easy writing
+ * Handles null char manually by writing one to the end of the line. Does not include null chars
+ * from any of the strings in the original array
+ */
 char* ConcatenateOutput(char** io_lines, int mynumboids, int num_chars)
 {
     char* io_line = (char*) calloc(num_chars + 1, sizeof(char));
@@ -98,8 +121,13 @@ char* ConcatenateOutput(char** io_lines, int mynumboids, int num_chars)
     return io_line;
 }
 
-
-Config* DefaultConfig()
+/*
+ * Generates a default config. When the config is read, any option found will overwrite values
+ * from here, but if a line corresponding to 'noise', for exapmle, is not found, a default value
+ * is used. No guarantee that any of the default values here make sense.
+ */
+Config*
+DefaultConfig(void)
 {
     Config* c = (Config*) malloc(sizeof(Config));
 
