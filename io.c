@@ -41,7 +41,8 @@ void WriteRankData(char* fname, Boid* boids, int mynumboids, int global_numboids
     free(io_line);
 }
 
-
+///////////////////////////////////////////////////////////////////////////////
+// Generates output line for each boid in simulation
 char* GenerateRankData(Boid* boids, int myrank, int mynumboids, int global_numboids, int ticknum,
                        int* num_bytes)
 {
@@ -56,9 +57,9 @@ char* GenerateRankData(Boid* boids, int myrank, int mynumboids, int global_numbo
         io_lines = (char**) calloc(mynumboids + 1, sizeof(char*));
 
         if (ticknum > 0)
-            n += sprintf(buff, "\n%i\n#Time step%i\n", global_numboids, ticknum);
+            n += sprintf(buff, "\n%i\n# Time step = %i\n", global_numboids, ticknum);
         else
-            n += sprintf(buff, "%i\n#Time step%i\n", global_numboids, ticknum);
+            n += sprintf(buff, "%i\n# Time step = %i\n", global_numboids, ticknum);
 
         io_lines[0] = strdup(buff);
         offset = 1;
@@ -69,41 +70,40 @@ char* GenerateRankData(Boid* boids, int myrank, int mynumboids, int global_numbo
 
     for (i = 0; i < mynumboids; ++i) {
         b = boids[i];
-        n += sprintf(buff, "bird%i %f %f 0.0 %f %f 0.0\n", b.id, b.r.x, b.r.y, b.v.x, b.v.y);
+        n += sprintf(buff, "%i %f %f 0.0 %f %f 0.0\n", b.id, b.r.x, b.r.y, b.v.x, b.v.y);
         io_lines[i + offset] = strdup(buff);
     }
     *num_bytes = n;
     return ConcatenateOutput(io_lines, mynumboids + offset, n);
 }
+///////////////////////////////////////////////////////////////////////////////
 
+
+///////////////////////////////////////////////////////////////////////////////
 char* ConcatenateOutput(char** io_lines, int mynumboids, int num_chars)
 {
     char* io_line = (char*) calloc(num_chars + 1, sizeof(char));
 
     int i, j, len;
-    for (i = 0; i < num_chars; ++i) {
-        io_line[i] = 0x40;
-    }
-    int count = 0;
+    int k = 0;
     for (i = 0; i < mynumboids; ++i) {
         len = strlen(io_lines[i]);
         for (j = 0; j < len; ++j) {
-            io_line[count++] = io_lines[i][j];
+            io_line[k++] = io_lines[i][j];
         }
         free(io_lines[i]);
     }
-    io_line[count] = 0x00;
+    io_line[k] = 0x00;
     free(io_lines);
     return io_line;
 }
-
 
 
 Config* DefaultConfig()
 {
     Config* c = (Config*) malloc(sizeof(Config));
 
-    c->fname = "outfile.dat";
+    c->fname = "outfile.txt";
     c->seed = -1;  // -1 means random seed
     c->numboids = 30;
     c->numticks = 100;

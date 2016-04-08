@@ -1,4 +1,4 @@
-////////////////////////////////////////////////////////////////////////////////
+
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -7,10 +7,10 @@
 #include <mpi.h>
 #include "clcg4.h"
 #include "init.h"
-////////////////////////////////////////////////////////////////////////////////
 
 
-////////////////////////////////////////////////////////////////////////////////
+
+
 // Initializes boids randomly all on rank 0 (so there is room for inequality
 // in the distrubition), and sends boids to appropriate ranks depending on which
 // quadrant they were initialized in
@@ -31,10 +31,10 @@ void Initialize(Boid** boids, Config* c, int* mynumboids, int myrank, int numran
                  MPI_STATUS_IGNORE);
     }
 }
-////////////////////////////////////////////////////////////////////////////////
 
 
-////////////////////////////////////////////////////////////////////////////////
+
+
 // Initialize all positions and velocities of boids, and sends them to various
 // ranks, except for those owned by rank 0
 void InitializeRanks(Boid** myboids, int* mynumboids, int numranks,
@@ -78,10 +78,10 @@ void InitializeRanks(Boid** myboids, int* mynumboids, int numranks,
     }
     *mynumboids = boids_per_rank[0];
 }
-////////////////////////////////////////////////////////////////////////////////
 
 
-////////////////////////////////////////////////////////////////////////////////
+
+
 // For the ith boid in boid_positions, create a `parallel` array where the ith
 // value is the rank the ith boid is going to be
 int* BoidRanks(Vec* boid_positions, int numranks, int numboids, double sidelen)
@@ -93,10 +93,10 @@ int* BoidRanks(Vec* boid_positions, int numranks, int numboids, double sidelen)
         boid_ranks[i] = VecToRank(boid_positions[i], sidelen, numranks);
     return boid_ranks;
 }
-////////////////////////////////////////////////////////////////////////////////
 
 
-////////////////////////////////////////////////////////////////////////////////
+
+
 // Based off location specified in Vec v, as well as the length along the total
 // side of the simulation and the number of ranks, this function returns the
 // rank where the boid belongs
@@ -112,10 +112,10 @@ int VecToRank(Vec v, double sidelen, int numranks)
 
     return x_quad + y_quad * ranks_per_side;
 }
-////////////////////////////////////////////////////////////////////////////////
 
 
-////////////////////////////////////////////////////////////////////////////////
+
+
 // This information is necessary so each rank knows how many boids it's
 // supposed to receive for MPI_recv.
 //
@@ -135,10 +135,10 @@ int* DistributeBoids(Vec* boid_positions, int numboids, int numranks,
 
     return boids_per_rank;
 }
-////////////////////////////////////////////////////////////////////////////////
 
 
-////////////////////////////////////////////////////////////////////////////////
+
+
 // Initializes all boids. This needs to be done on a single rank, so a
 // realistic distribution can be obtained. Since each rank will have
 // its own Simulator object, this is done early in the main function instead
@@ -147,7 +147,7 @@ Vec* InitBoidPositions(int numranks, int numboids, double sidelen)
     Vec* boid_positions = (Vec*) malloc( numboids * sizeof(Vec) );
 
     srand( time(NULL) );
-    int seed = rand() % 16383;  // Maximum seed value specified in clcg4.h
+    int seed = rand() % Maxgen;  // Maximum seed value specified in clcg4.h
 
     seed = 1;
     int i;
@@ -157,10 +157,10 @@ Vec* InitBoidPositions(int numranks, int numboids, double sidelen)
     }
     return boid_positions;
 }
-////////////////////////////////////////////////////////////////////////////////
 
 
-////////////////////////////////////////////////////////////////////////////////
+
+
 // Checks that numranks is a power of 4, as is assumed by the program. Prints
 // out error if rank 0
 void CheckRanks(int myrank, int numranks)
@@ -172,4 +172,3 @@ void CheckRanks(int myrank, int numranks)
         exit(1);
     }
 }
-////////////////////////////////////////////////////////////////////////////////
